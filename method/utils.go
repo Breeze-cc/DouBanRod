@@ -7,6 +7,7 @@ import (
 	"github.com/xuri/excelize/v2"
 	"reflect"
 	"strings"
+	"time"
 )
 
 func writeToExcel(data []model.Movie) {
@@ -40,6 +41,7 @@ func writeToExcel(data []model.Movie) {
 
 // 采集电影详细信息
 func CollectMovieInfo(page *rod.Page) model.Movie {
+	var alias string
 	name := page.MustElement(`span[property="v:itemreviewed"]`).MustText()
 	director := page.MustElement(`a[rel="v:directedBy"]`).MustText()
 	screenWriter := page.MustElement(`#info > span:nth-child(3) > span.attrs > a`).MustText()
@@ -48,16 +50,25 @@ func CollectMovieInfo(page *rod.Page) model.Movie {
 		actors = append(actors, strings.TrimSuffix(actor.MustText(), "/"))
 	}
 	genre := page.MustElement(`span[property="v:genre"]`).MustText()
-	// 地区和语言没有单独的标签，排列在span标签后面
-	//region := strings.TrimSpace(page.MustElement(`#info > span:nth-child(10)`).MustParent().MustElementX(`./text()`).MustText())
-	//language := strings.TrimSpace(page.MustElement(`#info > span:nth-child(12)`).MustParent().MustElementX(`./text()`).MustText())
+	// 地区和语言没有单独的标签，排列在span标签后面，使用xPath查找
+	span := page.MustElementR("span", "制片国家/地区:")
+	region := span.MustElementX(`following-sibling::text()[1]`).MustText()
+	span = page.MustElementR("span", "语言:")
+	language := span.MustElementX(`following-sibling::text()[1]`).MustText()
 	var releaseDate []string
 	for _, element := range page.MustElements(`span[property="v:initialReleaseDate"]`) {
 		releaseDate = append(releaseDate, element.MustText())
 	}
 	runtime := page.MustElement(`span[property="v:runtime"]`).MustText()
-	//alias := strings.TrimSpace(page.MustElement(`#info > span:nth-child(21)`).MustParent().MustElementX(`./text()`).MustText())
-	//IMDB := strings.TrimSpace(page.MustElement(`#info > span:nth-child(22)`).MustParent().MustElementX(`./text()`).MustText())
+	span, err := page.Timeout(time.Second*2).ElementR("span", "又名:")
+	if err != nil {
+		fmt.Println("没有别名")
+		alias = ""
+	} else {
+		alias = span.MustElementX(`following-sibling::text()[1]`).MustText()
+	}
+	span = page.MustElementR("span", "IMDb:")
+	IMDB := span.MustElementX(`following-sibling::text()[1]`).MustText()
 	rate := page.MustElement(`strong[property="v:average"]`).MustText()
 	movie := model.Movie{
 		MovieName:    name,
@@ -68,15 +79,11 @@ func CollectMovieInfo(page *rod.Page) model.Movie {
 		ScreenWriter: screenWriter,
 		Actors:       actors,
 		Type:         genre,
-		//Region:       region,
-		//Language:     language,
-		Length: runtime,
-		//Alias:        alias,
-		//IMDB:         IMDB,
-	}
-	v := reflect.ValueOf(movie)
-	for i := 0; i < v.NumField(); i++ {
-		fmt.Printf("%s %s\n", v.Type().Field(i).Name, v.Field(i).Interface())
+		Region:       region,
+		Language:     language,
+		Length:       runtime,
+		Alias:        alias,
+		IMDB:         IMDB,
 	}
 	return movie
 }
