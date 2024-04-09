@@ -2,7 +2,6 @@ package method
 
 import (
 	"douban/model"
-	"fmt"
 	"github.com/go-rod/rod"
 	"strings"
 	"time"
@@ -10,7 +9,7 @@ import (
 
 // CollectMovieInfo 采集电影详细信息
 func CollectMovieInfo(page *rod.Page) model.Movie {
-	var alias string
+	var alias, IMDB string
 	name := page.MustElement(`span[property="v:itemreviewed"]`).MustText()
 	director := page.MustElement(`a[rel="v:directedBy"]`).MustText()
 	screenWriter := page.MustElement(`#info > span:nth-child(3) > span.attrs > a`).MustText()
@@ -29,15 +28,20 @@ func CollectMovieInfo(page *rod.Page) model.Movie {
 		releaseDate = append(releaseDate, element.MustText())
 	}
 	runtime := page.MustElement(`span[property="v:runtime"]`).MustText()
-	span, err := page.Timeout(time.Second*2).ElementR("span", "又名:")
+	span, err := page.Timeout(time.Second).ElementR("span", "又名:")
 	if err != nil {
-		fmt.Println("没有别名")
 		alias = ""
 	} else {
 		alias = span.MustElementX(`following-sibling::text()[1]`).MustText()
 	}
 	span = page.MustElementR("span", "IMDb:")
-	IMDB := span.MustElementX(`following-sibling::text()[1]`).MustText()
+	x, err := page.Timeout(time.Second).ElementX(`"//a[contains(@href, 'imdb')]"`)
+	if err != nil {
+		IMDB = span.MustElementX(`following-sibling::text()[1]`).MustText()
+	} else {
+		IMDB = x.MustText()
+	}
+
 	rate := page.MustElement(`strong[property="v:average"]`).MustText()
 	movie := model.Movie{
 		MovieName:    name,
